@@ -899,10 +899,18 @@ $("wb-go").onclick = () => { closeModal("welcome"); if (wbAction) wbAction(); };
 /* ---------- Défis du jour : jouer 10 min, 30 min, 1 h d'affilée ---------- */
 // Le serveur mesure la série (supabase/05_defis.sql) : le jeu lui envoie un signal par minute
 // tant que le joueur est actif. Identique aux montants du fichier SQL.
+// Un seul défi de temps, qui monte d'étape chaque jour (10 min → 30 min → 1 h)
 const CHALLENGES = [
   { tier: 1, bit: 1, min: 10, reward: 300 },
   { tier: 2, bit: 2, min: 30, reward: 1000 },
   { tier: 3, bit: 4, min: 60, reward: 3000 },
+];
+// Défi de collection, une seule fois par compte (supabase/06_defis_progressifs.sql)
+const OWN_CHALLENGES = [
+  { tier: 1, bit: 1, target: 1, reward: 500 },
+  { tier: 2, bit: 2, target: 2, reward: 1000 },
+  { tier: 3, bit: 4, target: 5, reward: 3000 },
+  { tier: 4, bit: 8, target: 10, reward: 10000 },
 ];
 const IDLE_MS = 170000;   // un peu moins de 3 minutes, la limite du serveur
 const PLAY = { startLocal: null, claimed: 0, lastActivity: Date.now(), available: false, busy: false };
@@ -930,6 +938,15 @@ $("q-toggle").onclick = () => {
   try { localStorage.setItem("orbis-urbis-defis-ouverts", questsOpen ? "1" : "0"); } catch (e) {}
   renderQuests();
 };
+function myCommuneCount() { let n = 0; for (const [, o] of S.owners) if (o.o === S.uid) n++; return n; }
+function questRow(li, { label, reward, pct, ready, doneText }) {
+  li.querySelector(".q-label").textContent = label;
+  li.querySelector(".q-reward").textContent = doneText || `+${fmt(reward)} ₵`;
+  li.className = doneText ? "claimed" : ready ? "ready" : "";
+  li.querySelector(".q-bar i").style.width = Math.min(100, pct) + "%";
+  const btn = li.querySelector(".q-claim");
+  btn.hidden = !ready; btn.disabled = PLAY.busy;
+}
 function renderQuests() {
   const box = $("quests");
   box.hidden = !(S.uid && PLAY.available);
@@ -938,38 +955,56 @@ function renderQuests() {
   $("q-toggle").setAttribute("aria-expanded", questsOpen);
   const elapsed = PLAY.startLocal ? (Date.now() - PLAY.startLocal) / 60000 : 0;
   const paused = idle();
-  const done = CHALLENGES.filter(c => PLAY.claimed & c.bit).length;
-  $("q-session").textContent = paused ? "en pause" : `${Math.floor(elapsed)} min · ${done}/3`;
+  $("q-session").textContent = paused ? "en pause" : `${Math.floor(elapsed)} min de jeu`;
   if (!questsOpen) return;
   const ul = $("q-list");
-  if (ul.children.length !== CHALLENGES.length) {
+  if (ul.children.length !== 2) {
     ul.textContent = "";
-    for (const c of CHALLENGES) {
+    ["time", "own"].forEach(kind => {
       const li = document.createElement("li");
       li.innerHTML = '<div class="q-row"><span class="q-label"></span><span class="q-reward"></span></div><div class="q-bar"><i></i></div><button class="q-claim" type="button" hidden>Réclamer</button>';
-      li.querySelector(".q-label").textContent = c.min < 60 ? `Jouer ${c.min} min d'affilée` : "Jouer 1 h d'affilée";
-      li.querySelector(".q-reward").textContent = `+${fmt(c.reward)} ₵`;
-      li.querySelector(".q-claim").onclick = () => claimChallenge(c);
+      li.querySelector(".q-claim").onclick = () => kind === "time" ? claimTime() : claimOwned();
       ul.append(li);
-    }
+    });
   }
-  CHALLENGES.forEach((c, k) => {
-    const li = ul.children[k], claimed = !!(PLAY.claimed & c.bit), ready = !claimed && elapsed >= c.min;
-    li.className = claimed ? "claimed" : ready ? "ready" : "";
-    li.querySelector(".q-bar i").style.width = (claimed ? 100 : Math.min(100, elapsed / c.min * 100)) + "%";
-    const btn = li.querySelector(".q-claim");
-    btn.hidden = !ready; btn.disabled = PLAY.busy;
-    li.querySelector(".q-reward").textContent = claimed ? "Réclamé ✓" : `+${fmt(c.reward)} ₵`;
+  // Défi de temps : la première étape pas encore réclamée aujourd'hui
+  const t = CHALLENGES.find(c => !(PLAY.claimed & c.bit));
+  if (t) questRow(ul.children[0], {
+    label: t.min < 60 ? `Jouer ${t.min} min d'affilée` : "Jouer 1 h d'affilée",
+    reward: t.reward, pct: elapsed / t.min * 100, ready: elapsed >= t.min && !paused,
   });
+  else questRow(ul.children[0], { label: "Jouer 1 h d'affilée", pct: 100, doneText: "Fait ✓ · demain" });
+  // Défi de collection : la première étape pas encore réclamée
+  const claimedOwn = Number(S.me?.owned_claimed) || 0, count = myCommuneCount();
+  const o = OWN_CHALLENGES.find(c => !(claimedOwn & c.bit));
+  if (o) questRow(ul.children[1], {
+    label: `Posséder ${o.target} commune${o.target > 1 ? "s" : ""} (${Math.min(count, o.target)}/${o.target})`,
+    reward: o.reward, pct: count / o.target * 100, ready: count >= o.target,
+  });
+  else questRow(ul.children[1], { label: "Posséder 10 communes", pct: 100, doneText: "Terminé ✓" });
 }
-async function claimChallenge(c) {
-  if (PLAY.busy) return;
+async function claimTime() {
+  const c = CHALLENGES.find(x => !(PLAY.claimed & x.bit));
+  if (!c || PLAY.busy) return;
   PLAY.busy = true; renderQuests();
   const { data, error } = await sb.rpc("play_claim", { p_tier: c.tier });
   PLAY.busy = false;
   if (error) { toast(frError(error), "err"); heartbeat(); return; }
   S.me = data; S.profiles.set(S.uid, data);
   PLAY.claimed |= c.bit;
+  const next = CHALLENGES.find(x => !(PLAY.claimed & x.bit));
+  toast(`Défi réussi : +${fmt(c.reward)} ₵ !${next ? ` Prochaine étape : ${next.min < 60 ? next.min + " min" : "1 h"}.` : ""}`, "ok");
+  renderAll(); renderQuests();
+}
+async function claimOwned() {
+  const claimedOwn = Number(S.me?.owned_claimed) || 0;
+  const c = OWN_CHALLENGES.find(x => !(claimedOwn & x.bit));
+  if (!c || PLAY.busy) return;
+  PLAY.busy = true; renderQuests();
+  const { data, error } = await sb.rpc("claim_owned", { p_tier: c.tier });
+  PLAY.busy = false;
+  if (error) { toast(frError(error), "err"); renderQuests(); return; }
+  S.me = data; S.profiles.set(S.uid, data);
   toast(`Défi réussi : +${fmt(c.reward)} ₵ !`, "ok");
   renderAll(); renderQuests();
 }

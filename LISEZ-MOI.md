@@ -26,7 +26,7 @@ Sans Supabase, on peut explorer le globe mais pas acheter. Supabase est gratuit 
 1. Créez un compte sur https://supabase.com, puis un **nouveau projet** (notez le mot de passe de la base, il ne sert pas dans le jeu).
 2. Dans le projet, ouvrez **SQL Editor > New query**, collez tout le contenu de `supabase/schema.sql`, puis cliquez sur **Run**. Cela crée les tables, les règles de sécurité et la fonction d'achat.
    Ensuite, toujours dans **SQL Editor**, exécutez de la même façon `supabase/02_pack_bienvenue.sql` (pack de bienvenue et prix vérifiés par le serveur).
-   Exécutez aussi `supabase/03_vente.sql` (vente des communes), puis `supabase/04_ameliorations.sql` (améliorations) et `supabase/05_defis.sql` (défis du jour).
+   Exécutez aussi `supabase/03_vente.sql` (vente des communes), puis `supabase/04_ameliorations.sql` (améliorations) `supabase/05_defis.sql` puis `supabase/06_defis_progressifs.sql` (défis).
    Puis remplissez le catalogue des communes : **Table Editor > communes > Insert > Import data from CSV**, choisissez `supabase/communes.csv` (225 951 lignes, environ 9 Mo) et validez l'import.
 3. Ouvrez **Project Settings > API** (ou **Data API**) et copiez :
    - l'**URL du projet** (`https://xxxx.supabase.co`),
@@ -75,17 +75,15 @@ Sur la fiche d'une commune qui vous appartient, **Améliorer** construit le bât
 
 Le point vert grossit avec le niveau, et il a un contour doré au niveau 5. Les améliorations sont vérifiées par le serveur. Pour changer les chiffres, modifiez `supabase/04_ameliorations.sql` (fonctions `level_multiplier` et `upgrade_cost_ratio`) et `LEVELS` dans `js/game.js`.
 
-## Défis du jour
+## Défis
 
-Le panneau **Défis du jour** (sous le trésor) récompense les joueurs qui jouent sans s'arrêter :
+Le panneau **Défis** (sous le trésor) affiche deux défis, chacun à son étape du moment :
 
-| Défi | Récompense |
-|---|---|
-| Jouer 10 min d'affilée | +300 ₵ |
-| Jouer 30 min d'affilée | +1 000 ₵ |
-| Jouer 1 h d'affilée | +3 000 ₵ |
+**Temps de jeu**, chaque jour : jouer **10 min d'affilée** (+300 ₵), puis **30 min** (+1 000 ₵), puis **1 h** (+3 000 ₵). Une fois une étape réclamée, la suivante apparaît. Le défi repart de 10 min chaque jour à minuit (heure de Paris). C'est le serveur qui mesure le temps : le jeu lui envoie un signal chaque minute tant que le joueur bouge la souris, le clavier ou l'écran. Après 3 minutes d'inactivité, ou si le jeu est fermé ou caché, la série repart de zéro.
 
-Chaque défi se réclame une fois par jour (les défis reviennent à minuit, heure de Paris). C'est le serveur qui mesure le temps : le jeu lui envoie un signal chaque minute tant que le joueur bouge la souris, le clavier ou l'écran. Après 3 minutes d'inactivité, ou si le jeu est fermé ou caché, la série repart de zéro. Pour changer les durées ou les montants, modifiez `play_challenge` dans `supabase/05_defis.sql` et `CHALLENGES` dans `js/game.js`.
+**Collection**, une seule fois par compte : posséder **1 commune** (+500 ₵), puis **2** (+1 000 ₵), puis **5** (+3 000 ₵), puis **10** (+10 000 ₵).
+
+Pour changer les chiffres : `play_challenge` et `owned_challenge` dans les fichiers SQL, et `CHALLENGES` / `OWN_CHALLENGES` dans `js/game.js`.
 
 ## Pendant ton absence
 
@@ -149,7 +147,7 @@ Sans clé, le globe affiche des photos satellite Esri vues du dessus. Pour avoir
 - `js/game.js` : le globe, les règles du jeu, les comptes et le multijoueur
 - `js/boundaries.js`, `js/mvt.js` : le calque des limites administratives
 - `js/config.js` : vos clés (Supabase, Google, Cesium)
-- `supabase/schema.sql`, puis `02_pack_bienvenue.sql`, `03_vente.sql`, `04_ameliorations.sql` et `05_defis.sql` : la base de données à installer dans Supabase, dans cet ordre
+- `supabase/schema.sql`, puis `02_pack_bienvenue.sql`, `03_vente.sql`, `04_ameliorations.sql`, `05_defis.sql` et `06_defis_progressifs.sql` : la base de données à installer dans Supabase, dans cet ordre
 - `supabase/communes.csv` : le catalogue des communes (prix et catégorie) à importer dans la table `communes`
 - `data/communes.txt` : les communes (id GeoNames, nom, pays, latitude, longitude, population)
 - `tools/build_communes.py` : le script qui fabrique `data/communes.txt`
