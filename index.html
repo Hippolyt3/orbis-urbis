@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css">
-<link rel="stylesheet" href="css/style.css?v=202611182021">
+<link rel="stylesheet" href="css/style.css?v=202611182027">
 </head>
 <body>
 
@@ -166,15 +166,23 @@
   <ol id="lb"></ol>
 </div>
 
+<div class="hud" id="live">
+  <button class="glass pill" id="ev-pill" type="button" hidden></button>
+  <div class="glass pill chest" id="chest-pill" hidden>
+    <span class="chest-ico" aria-hidden="true"></span>
+    <span id="chest-text"></span>
+    <button class="primary small" id="chest-go" type="button">Chercher</button>
+  </div>
+</div>
 <div class="hud" id="hint">Glissez pour tourner · pincez ou molette pour zoomer · clic droit + glisser pour incliner la vue</div>
 <div class="hud glass" id="toast" hidden role="status"></div>
 
 <script>window.CESIUM_BASE_URL = "https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/";</script>
 <script src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
-<script src="js/config.js?v=202611182021"></script>
-<script src="js/mvt.js?v=202611182021"></script>
-<script src="js/boundaries.js?v=202611182021"></script>
-<script src="js/game.js?v=202611182021"></script>
+<script src="js/config.js?v=202611182027"></script>
+<script src="js/mvt.js?v=202611182027"></script>
+<script src="js/boundaries.js?v=202611182027"></script>
+<script src="js/game.js?v=202611182027"></script>
 </body>
 </html>

@@ -289,6 +289,7 @@ scene.preRender.addEventListener(() => {
 
 // Clic : sur un marqueur, ou au plus près de l'endroit cliqué
 new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => {
+  if (DIG.on) return digAt(ev.position);
   if (!N.count) return;
   const picked = scene.pick(ev.position);
   if (picked?.id && typeof picked.id.i === "number") return select(picked.id.i, false);
@@ -365,10 +366,11 @@ function renderCard() {
       buy.disabled = false; buy.textContent = "Se connecter pour acheter";
       note.textContent = `Prix : ${fmt(c.price)} ₵. Créez un compte gratuit pour bâtir votre empire.`;
     } else {
-      const bal = balance(), short = bal < c.price;
+      const cost = eventCost(c.price, c.cc), bal = balance(), short = bal < cost;
       buy.disabled = S.busy || short;
-      buy.textContent = S.busy ? "Achat en cours…" : `Acheter pour ${fmt(c.price)} ₵`;
-      note.textContent = short ? `Il vous manque ${fmt(c.price - bal)} ₵. Vos communes génèrent des revenus chaque heure.` : `Rentabilisée en ${Math.round(1 / YIELD)} heures.`;
+      buy.textContent = S.busy ? "Achat en cours…" : `Acheter pour ${fmt(cost)} ₵`;
+      note.textContent = (cost < c.price ? `Événement : −${Math.round(EVENT.discount * 100)} % jusqu'à la fin de l'heure (au lieu de ${fmt(c.price)} ₵). ` : "")
+        + (short ? `Il vous manque ${fmt(cost - bal)} ₵. Vos communes génèrent des revenus chaque heure.` : `Rentabilisée en ${Math.round(cost / (c.price * YIELD))} heures.`);
     }
   }
   box.append(sw, label);
@@ -379,13 +381,13 @@ $("buy").onclick = async () => {
   const c = S.selected; if (!c || S.owners.get(c.gid)?.o || S.busy) return;
   if (!sb) return toast("Ajoutez vos clés Supabase dans js/config.js pour jouer.", "err");
   if (!S.uid) return openAuth("login");
-  if (balance() < c.price) return toast("Trésor insuffisant pour cette commune.", "err");
+  if (balance() < eventCost(c.price, c.cc)) return toast("Trésor insuffisant pour cette commune.", "err");
   S.busy = true; renderCard();
   const { data, error } = await sb.rpc("buy_commune", { p_gid: c.gid });
   S.busy = false;
   if (error) { toast(error.message || "L'achat n'a pas abouti. Réessayez.", "err"); renderCard(); return; }
   S.me = data; S.profiles.set(S.uid, data);
-  S.owners.set(c.gid, { o: S.uid, p: c.price, t: Date.now(), lv: 1, inv: c.price });
+  S.owners.set(c.gid, { o: S.uid, p: c.price, t: Date.now(), lv: 1, inv: eventCost(c.price, c.cc) });
   toast(`${c.name} rejoint votre empire.`, "ok");
   renderAll();
 };
@@ -404,7 +406,7 @@ function renderLevel(c, own) {
   up.hidden = !mine;
   if (!mine) return;
   if (lv >= 5) { up.disabled = true; up.textContent = "Niveau maximum atteint"; up.title = ""; return; }
-  const next = LEVELS[lv + 1], cost = Math.ceil((own.p || c.price) * next.cost);
+  const next = LEVELS[lv + 1], cost = eventCost(Math.ceil((own.p || c.price) * next.cost), c.cc);
   const gain = (own.p || c.price) * YIELD * (next.mult - LEVELS[lv].mult);
   up.disabled = S.busy || balance() < cost;
   up.textContent = S.busy ? "Construction…" : `Améliorer · ${fmt(cost)} ₵`;
@@ -420,7 +422,7 @@ $("upgrade").onclick = async () => {
   const { data, error } = await sb.rpc("upgrade_commune", { p_gid: c.gid });
   S.busy = false;
   if (error) { toast(frError(error), "err"); renderCard(); return; }
-  const lv = levelOf(own) + 1, cost = Math.ceil(own.p * LEVELS[lv].cost);
+  const lv = levelOf(own) + 1, cost = eventCost(Math.ceil(own.p * LEVELS[lv].cost), c.cc);
   S.me = data; S.profiles.set(S.uid, data);
   S.owners.set(c.gid, { ...own, lv, inv: investedOf(own, c.price) + cost });
   toast(`${c.name} passe au niveau ${lv} : ${LEVELS[lv].name} !`, "ok");
@@ -517,7 +519,8 @@ function toast(msg, kind) { const t = $("toast"); t.textContent = msg; t.classNa
   search.placeholder = `Chercher parmi ${fmt(N.count)} communes…`;
   await earth;
   renderAll();
-  initMultiplayer();
+  await initMultiplayer();
+  refreshLive();
 })();
 
 /* ---------- Multijoueur : chargement et temps réel ---------- */
@@ -1018,4 +1021,148 @@ async function claimOwned() {
   renderAll(); renderQuests();
 }
 
-window.orbis = { viewer, N, S, drawMine, select, renderCard, maybeWelcomeBack, PLAY, renderQuests };   // pour le débogage dans la console
+/* ---------- Événement de l'heure et coffres au trésor (supabase/08_coffres_evenements.sql) ---------- */
+const EVENT = { cc: null, discount: 0, endsAt: 0 };
+const CHEST = { slot: null, cc: null, lat: 0, lng: 0, radius: 0, reward: 0, winner: null, endsAt: 0 };
+const DIG = { on: false, busy: false };
+// Prix réduit si la commune est dans le pays de l'événement (même arrondi que le serveur)
+function eventCost(price, cc) {
+  return EVENT.cc && cc === EVENT.cc && Date.now() < EVENT.endsAt ? Math.ceil(price * (1 - EVENT.discount)) : price;
+}
+const fmtClock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+async function refreshLive() {
+  if (!sb) return;
+  const [ev, ch] = await Promise.all([sb.rpc("current_event"), sb.rpc("current_chest")]);
+  if (!ev.error) {
+    const r = Array.isArray(ev.data) ? ev.data[0] : ev.data;
+    const changed = r.cc !== EVENT.cc;
+    Object.assign(EVENT, { cc: r.cc, discount: Number(r.discount), endsAt: Date.now() + r.seconds_left * 1000 });
+    if (changed) renderCard();
+  }
+  if (!ch.error) {
+    const r = Array.isArray(ch.data) ? ch.data[0] : ch.data;
+    const newSlot = r.slot !== CHEST.slot;
+    Object.assign(CHEST, { slot: r.slot, cc: r.cc, lat: r.hint_lat, lng: r.hint_lng, radius: r.radius_km,
+      reward: r.reward, winner: r.winner, endsAt: Date.now() + r.seconds_left * 1000 });
+    if (newSlot) clearDigs();
+    if (newSlot || r.winner) drawChest();
+    if (CHEST.winner && DIG.on) stopDig();
+  }
+  renderLive();
+}
+setInterval(refreshLive, 30000);
+setInterval(() => {
+  if ((CHEST.endsAt && Date.now() > CHEST.endsAt + 1000) || (EVENT.endsAt && Date.now() > EVENT.endsAt + 1000)) { CHEST.endsAt = EVENT.endsAt = 0; refreshLive(); }
+  renderLive();
+}, 1000);
+
+// Cercle d'indice du coffre sur le globe
+let chestEntity = null;
+function drawChest() {
+  if (chestEntity) { viewer.entities.remove(chestEntity); chestEntity = null; }
+  if (!CHEST.slot || CHEST.winner) return;
+  chestEntity = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(CHEST.lng, CHEST.lat),
+    ellipse: {
+      semiMajorAxis: CHEST.radius * 1000, semiMinorAxis: CHEST.radius * 1000, height: 0,
+      material: C.fromCssColorString("#f2c14e").withAlpha(0.12),
+      outline: true, outlineColor: C.fromCssColorString("#f2c14e"), outlineWidth: 2,
+    },
+    label: {
+      text: "Coffre caché ici", font: "700 13px Inter, system-ui, sans-serif", fillColor: C.fromCssColorString("#f2c14e"),
+      outlineColor: C.BLACK, outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+      verticalOrigin: Cesium.VerticalOrigin.CENTER,
+      distanceDisplayCondition: new Cesium.DistanceDisplayCondition(150000, 4.0e7),
+    },
+  });
+}
+
+// Coups de pelle déjà donnés (avec leur distance)
+const digPoints = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+const digLabels = scene.primitives.add(new Cesium.LabelCollection());
+function clearDigs() { digPoints.removeAll(); digLabels.removeAll(); }
+function heatOf(km) {
+  if (km < 15) return { word: "Brûlant", color: "#ff4a4a" };
+  if (km < 35) return { word: "Chaud", color: "#ff9f43" };
+  if (km < 70) return { word: "Tiède", color: "#f2c14e" };
+  return { word: "Froid", color: "#5ea8ff" };
+}
+function markDig(lat, lng, km) {
+  const h = heatOf(km), pos = Cesium.Cartesian3.fromDegrees(lng, lat, 100);
+  digPoints.add({ position: pos, pixelSize: 9, color: C.fromCssColorString(h.color), outlineColor: C.BLACK, outlineWidth: 1.5 });
+  digLabels.add({ position: pos, text: `${km} km`, font: "600 12px Inter, system-ui, sans-serif", fillColor: C.fromCssColorString(h.color),
+    outlineColor: C.BLACK, outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cesium.Cartesian2(0, -16),
+    horizontalOrigin: Cesium.HorizontalOrigin.CENTER });
+}
+
+function startDig() {
+  if (!sb) return;
+  if (!S.uid) return openAuth("login");
+  if (!CHEST.slot || CHEST.winner) return;
+  DIG.on = true; document.body.classList.add("digging");
+  stopSpin();
+  camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(CHEST.lng, CHEST.lat, CHEST.radius * 2600), duration: 2.5 });
+  toast("Clique dans le cercle doré pour creuser. Le serveur te dira à quelle distance est le coffre.", "ok");
+  renderLive();
+}
+function stopDig() { DIG.on = false; document.body.classList.remove("digging"); renderLive(); }
+async function digAt(screenPos) {
+  if (DIG.busy) return;
+  const cart = camera.pickEllipsoid(screenPos); if (!cart) return;
+  const g = Cesium.Cartographic.fromCartesian(cart), lat = g.latitude / toRad, lng = g.longitude / toRad;
+  if (angDist(lat, lng, CHEST.lat, CHEST.lng) * 111.2 > CHEST.radius * 1.05) return toast("Le coffre est dans le cercle doré : creuse à l'intérieur.", "err");
+  DIG.busy = true;
+  const { data, error } = await sb.rpc("dig_chest", { p_lat: lat, p_lng: lng });
+  DIG.busy = false;
+  if (error) return toast(frError(error), "err");
+  const r = Array.isArray(data) ? data[0] : data;
+  if (r.status === "trouve") {
+    toast(`Coffre trouvé ! +${fmt(r.reward)} ₵`, "ok");
+    CHEST.winner = S.uid; stopDig(); drawChest();
+    const { data: me } = await sb.from("profiles").select("*").eq("id", S.uid).maybeSingle();
+    if (me) { S.me = me; S.profiles.set(me.id, me); }
+    renderAll();
+  } else if (r.status === "deja") {
+    toast("Trop tard : quelqu'un vient de trouver ce coffre. Le prochain arrive bientôt.", "err");
+    CHEST.winner = CHEST.winner || "?"; stopDig(); drawChest();
+  } else {
+    markDig(lat, lng, r.distance_km);
+    toast(`${heatOf(r.distance_km).word} : le coffre est à ${r.distance_km} km.`, "ok");
+  }
+  renderLive();
+}
+
+function renderLive() {
+  const evPill = $("ev-pill"), chPill = $("chest-pill");
+  const evLeft = (EVENT.endsAt - Date.now()) / 1000;
+  evPill.hidden = !(EVENT.cc && evLeft > 0);
+  if (!evPill.hidden) evPill.textContent = `Événement · ${countryOf(EVENT.cc)} −${Math.round(EVENT.discount * 100)} % · ${Math.ceil(evLeft / 60)} min`;
+  const chLeft = (CHEST.endsAt - Date.now()) / 1000;
+  chPill.hidden = !(CHEST.slot && chLeft > 0);
+  if (chPill.hidden) return;
+  const go = $("chest-go");
+  if (CHEST.winner) {
+    const who = CHEST.winner === S.uid ? "toi" : nameFor(CHEST.winner);
+    $("chest-text").textContent = `Coffre trouvé par ${who} · prochain dans ${fmtClock(chLeft)}`;
+    go.hidden = true;
+  } else {
+    $("chest-text").textContent = DIG.on
+      ? `Fouille en cours · ${fmt(CHEST.reward)} ₵ · ${fmtClock(chLeft)}`
+      : `Coffre de ${fmt(CHEST.reward)} ₵ · quelque part en ${countryOf(CHEST.cc)} · ${fmtClock(chLeft)}`;
+    go.hidden = false;
+    go.textContent = DIG.on ? "Arrêter" : "Chercher";
+  }
+}
+$("chest-go").onclick = () => DIG.on ? stopDig() : startDig();
+$("ev-pill").onclick = () => {
+  // Vole vers la plus grande ville du pays de l'événement
+  for (let i = 0; i < N.count; i++) if (N.cc[i] === EVENT.cc) {
+    stopSpin();
+    camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(N.lng[i], N.lat[i], 2500000), duration: 2.5 });
+    toast(`${countryOf(EVENT.cc)} : achats et améliorations −${Math.round(EVENT.discount * 100)} % jusqu'à la fin de l'heure.`, "ok");
+    break;
+  }
+};
+
+window.orbis = { viewer, N, S, drawMine, select, renderCard, maybeWelcomeBack, PLAY, renderQuests, CHEST, EVENT, renderLive, drawChest };   // pour le débogage dans la console
