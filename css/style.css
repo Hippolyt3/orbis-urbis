@@ -189,3 +189,16 @@ details .row-form { margin-bottom: 12px; }
 
 /* Noms longs : ne passent plus sous le bouton de fermeture */
 #card h2 { padding-right: 30px; overflow-wrap: anywhere; }
+
+/* ---------- Niveaux d'amélioration ---------- */
+.levels { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
+.lv-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; font: 700 13px var(--f-display); letter-spacing: .03em; }
+.lv-mult { font: 12px var(--f-data); color: var(--ink-dim); }
+.pips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.pips i { height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); }
+.pips i.on { background: #34d27a; }
+.pips i.on:nth-child(5) { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+#upgrade { padding: 11px; font-size: 13px; }
+#upgrade:disabled { opacity: .55; cursor: not-allowed; }
+.levels .note { margin: 0; }
+.levels .note:empty, #c-level #upgrade[hidden] + .note { display: none; }

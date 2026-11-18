@@ -26,7 +26,7 @@ Sans Supabase, on peut explorer le globe mais pas acheter. Supabase est gratuit 
 1. Créez un compte sur https://supabase.com, puis un **nouveau projet** (notez le mot de passe de la base, il ne sert pas dans le jeu).
 2. Dans le projet, ouvrez **SQL Editor > New query**, collez tout le contenu de `supabase/schema.sql`, puis cliquez sur **Run**. Cela crée les tables, les règles de sécurité et la fonction d'achat.
    Ensuite, toujours dans **SQL Editor**, exécutez de la même façon `supabase/02_pack_bienvenue.sql` (pack de bienvenue et prix vérifiés par le serveur).
-   Exécutez aussi `supabase/03_vente.sql` (vente des communes).
+   Exécutez aussi `supabase/03_vente.sql` (vente des communes), puis `supabase/04_ameliorations.sql` (améliorations).
    Puis remplissez le catalogue des communes : **Table Editor > communes > Insert > Import data from CSV**, choisissez `supabase/communes.csv` (225 951 lignes, environ 9 Mo) et validez l'import.
 3. Ouvrez **Project Settings > API** (ou **Data API**) et copiez :
    - l'**URL du projet** (`https://xxxx.supabase.co`),
@@ -61,9 +61,23 @@ Le tirage ne propose que des communes qui n'ont pas encore de propriétaire. Si 
 
 Pour changer les chances, modifiez la ligne `odds` dans `supabase/02_pack_bienvenue.sql`, exécutez de nouveau le fichier, puis mettez à jour l'affichage (`TIERS` dans `js/game.js`).
 
+## Améliorer une commune
+
+Sur la fiche d'une commune qui vous appartient, **Améliorer** construit le bâtiment suivant et augmente son revenu :
+
+| Niveau | Bâtiment | Revenu | Coût de l'amélioration |
+|---|---|---|---|
+| 1 | Commune | ×1 | (achat) |
+| 2 | Marché | ×1,5 | 50 % du prix de la commune |
+| 3 | Gare | ×2 | 100 % |
+| 4 | Aéroport | ×3 | 200 % |
+| 5 | Monument | ×5 | 400 % |
+
+Le point vert grossit avec le niveau, et il a un contour doré au niveau 5. Les améliorations sont vérifiées par le serveur. Pour changer les chiffres, modifiez `supabase/04_ameliorations.sql` (fonctions `level_multiplier` et `upgrade_cost_ratio`) et `LEVELS` dans `js/game.js`.
+
 ## Vendre une commune
 
-Sur la fiche d'une commune qui vous appartient, **Vendre** vous rend **la moitié de sa valeur**. Une confirmation est demandée avant la vente. Vous perdez le revenu horaire qu'elle rapportait, et la commune redevient libre pour tous les joueurs. La vente est faite et vérifiée par le serveur.
+Sur la fiche d'une commune qui vous appartient, **Vendre** vous rend **la moitié de tout ce que vous y avez investi** (achat et améliorations). Une confirmation est demandée avant la vente. Vous perdez le revenu horaire qu'elle rapportait, et la commune redevient libre pour tous les joueurs. La vente est faite et vérifiée par le serveur.
 
 ## Commandes
 
@@ -119,7 +133,7 @@ Sans clé, le globe affiche des photos satellite Esri vues du dessus. Pour avoir
 - `js/game.js` : le globe, les règles du jeu, les comptes et le multijoueur
 - `js/boundaries.js`, `js/mvt.js` : le calque des limites administratives
 - `js/config.js` : vos clés (Supabase, Google, Cesium)
-- `supabase/schema.sql`, puis `supabase/02_pack_bienvenue.sql`, puis `supabase/03_vente.sql` : la base de données à installer dans Supabase, dans cet ordre
+- `supabase/schema.sql`, puis `02_pack_bienvenue.sql`, `03_vente.sql` et `04_ameliorations.sql` : la base de données à installer dans Supabase, dans cet ordre
 - `supabase/communes.csv` : le catalogue des communes (prix et catégorie) à importer dans la table `communes`
 - `data/communes.txt` : les communes (id GeoNames, nom, pays, latitude, longitude, population)
 - `tools/build_communes.py` : le script qui fabrique `data/communes.txt`

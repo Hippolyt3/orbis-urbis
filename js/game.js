@@ -239,6 +239,20 @@ function updateMarkers() {
   }
 }
 
+/* ---------- Niveaux d'amélioration (identiques à supabase/04_ameliorations.sql) ---------- */
+// cost : prix de l'amélioration VERS ce niveau, en part du prix de la commune
+const LEVELS = [
+  null,
+  { name: "Commune",  mult: 1 },
+  { name: "Marché",   mult: 1.5, cost: 0.5 },
+  { name: "Gare",     mult: 2,   cost: 1 },
+  { name: "Aéroport", mult: 3,   cost: 2 },
+  { name: "Monument", mult: 5,   cost: 4 },
+];
+const levelOf = o => Math.min(5, Math.max(1, o?.lv || 1));
+const incomeOf = (o, basePrice) => (o?.p || basePrice) * YIELD * LEVELS[levelOf(o)].mult;
+const investedOf = (o, basePrice) => o?.inv || o?.p || basePrice;
+
 /* ---------- Mes communes : un point vert visible à toutes les échelles ---------- */
 // Dessiné au-dessus du sol (sans traverser la Terre), même vu depuis l'espace.
 const mineLayer = scene.primitives.add(new Cesium.PointPrimitiveCollection());
@@ -248,15 +262,17 @@ function drawMine() {
   if (!N.count) return;
   const gids = [];
   for (const [gid, o] of S.owners) if (o.o === S.uid) gids.push(gid);
-  const key = S.uid + ":" + gids.sort().join(",");
+  const key = S.uid + ":" + gids.sort().map(g => g + "@" + levelOf(S.owners.get(g))).join(",");
   if (key === mineKey) return;
   mineKey = key;
   mineLayer.removeAll();
   for (const gid of gids) {
     const i = N.byGid.get(gid); if (i === undefined) continue;
+    const lv = levelOf(S.owners.get(gid));
     mineLayer.add({
       position: Cesium.Cartesian3.fromDegrees(N.lng[i], N.lat[i], 200),
-      pixelSize: 9, color: MINE_COLOR, outlineColor: C.WHITE.withAlpha(0.9), outlineWidth: 2,
+      pixelSize: 7 + lv * 2, color: MINE_COLOR,
+      outlineColor: lv === 5 ? C.fromCssColorString("#f2c14e") : C.WHITE.withAlpha(0.9), outlineWidth: lv === 5 ? 3 : 2,
       id: { i },
     });
   }
@@ -313,7 +329,8 @@ function renderCard() {
   $("c-coords").textContent = `${Math.abs(c.lat).toFixed(3)}° ${c.lat >= 0 ? "N" : "S"} · ${Math.abs(c.lng).toFixed(3)}° ${c.lng >= 0 ? "E" : "O"}`;
   $("c-pop").textContent = fmtPop(c.pop);
   $("c-price").textContent = fmt(own?.p || c.price) + " ₵";
-  $("c-yield").textContent = "+" + fmt(c.price * YIELD) + " ₵/h";
+  $("c-yield").textContent = "+" + fmt(own?.o ? incomeOf(own, c.price) : c.price * YIELD) + " ₵/h";
+  renderLevel(c, own);
   $("c-rank").textContent = "#" + fmt(c.rank);
   const box = $("c-owner"), buy = $("buy"), note = $("c-note");
   box.className = "owner"; box.textContent = "";
@@ -328,15 +345,15 @@ function renderCard() {
     label.textContent = mine ? `Cette commune vous appartient depuis le ${since}` : `Possédée par ${nameFor(own.o)} depuis le ${since}`;
     buy.disabled = true; buy.textContent = "Déjà vendue";
     if (mine) {
-      const refund = Math.floor((own.p || c.price) / 2), confirming = S.sellConfirm === c.gid;
+      const refund = Math.floor(investedOf(own, c.price) / 2), confirming = S.sellConfirm === c.gid;
       buy.hidden = true; $("sell-box").hidden = false;
       $("sell").hidden = confirming; $("sell-confirm").hidden = !confirming;
       $("sell").textContent = `Vendre pour ${fmt(refund)} ₵`;
       $("sell-yes").textContent = S.busy ? "Vente en cours…" : "Oui, vendre";
       $("sell-yes").disabled = S.busy;
       note.textContent = confirming
-        ? `Vous récupérez la moitié de sa valeur, ${fmt(refund)} ₵, et perdez ${fmt((own.p || c.price) * YIELD)} ₵ de revenu par heure. Elle redeviendra libre pour tous les joueurs.`
-        : `Elle vous rapporte ${fmt((own.p || c.price) * YIELD)} ₵ par heure. En la vendant, vous récupérez la moitié de sa valeur.`;
+        ? `Vous récupérez la moitié de ce que vous y avez investi, ${fmt(refund)} ₵, et perdez ${fmt(incomeOf(own, c.price))} ₵ de revenu par heure. Elle redeviendra libre pour tous les joueurs.`
+        : `Elle vous rapporte ${fmt(incomeOf(own, c.price))} ₵ par heure. En la vendant, vous récupérez la moitié de ce que vous y avez investi.`;
     } else note.textContent = "Chaque commune n'a qu'un propriétaire. Il en reste des centaines de milliers ailleurs.";
   } else {
     sw.style.background = "rgba(220,235,255,.6)";
@@ -368,12 +385,49 @@ $("buy").onclick = async () => {
   S.busy = false;
   if (error) { toast(error.message || "L'achat n'a pas abouti. Réessayez.", "err"); renderCard(); return; }
   S.me = data; S.profiles.set(S.uid, data);
-  S.owners.set(c.gid, { o: S.uid, p: c.price, t: Date.now() });
+  S.owners.set(c.gid, { o: S.uid, p: c.price, t: Date.now(), lv: 1, inv: c.price });
   toast(`${c.name} rejoint votre empire.`, "ok");
   renderAll();
 };
 
-/* ---------- Vente : on récupère la moitié de la valeur ---------- */
+/* ---------- Amélioration ---------- */
+function renderLevel(c, own) {
+  const box = $("c-level");
+  $("c-level-next").textContent = "";
+  if (!own?.o) { box.hidden = true; return; }
+  box.hidden = false;
+  const lv = levelOf(own), mine = own.o === S.uid;
+  $("c-level-name").textContent = `Niveau ${lv} · ${LEVELS[lv].name}`;
+  $("c-level-mult").textContent = `revenu ×${String(LEVELS[lv].mult).replace(".", ",")}`;
+  $("c-pips").querySelectorAll("i").forEach((pip, k) => pip.classList.toggle("on", k < lv));
+  const up = $("upgrade");
+  up.hidden = !mine;
+  if (!mine) return;
+  if (lv >= 5) { up.disabled = true; up.textContent = "Niveau maximum atteint"; up.title = ""; return; }
+  const next = LEVELS[lv + 1], cost = Math.ceil((own.p || c.price) * next.cost);
+  const gain = (own.p || c.price) * YIELD * (next.mult - LEVELS[lv].mult);
+  up.disabled = S.busy || balance() < cost;
+  up.textContent = S.busy ? "Construction…" : `Améliorer · ${fmt(cost)} ₵`;
+  up.title = `Revenu ×${String(next.mult).replace(".", ",")} : +${fmt(gain)} ₵/h`;
+  $("c-level-next").textContent = balance() < cost
+    ? `Prochain niveau : ${next.name} (+${fmt(gain)} ₵/h). Il vous manque ${fmt(cost - balance())} ₵.`
+    : `Prochain niveau : ${next.name}, +${fmt(gain)} ₵ de revenu par heure.`;
+}
+$("upgrade").onclick = async () => {
+  const c = S.selected, own = c && S.owners.get(c.gid);
+  if (!own || own.o !== S.uid || S.busy || levelOf(own) >= 5) return;
+  S.busy = true; renderCard();
+  const { data, error } = await sb.rpc("upgrade_commune", { p_gid: c.gid });
+  S.busy = false;
+  if (error) { toast(frError(error), "err"); renderCard(); return; }
+  const lv = levelOf(own) + 1, cost = Math.ceil(own.p * LEVELS[lv].cost);
+  S.me = data; S.profiles.set(S.uid, data);
+  S.owners.set(c.gid, { ...own, lv, inv: investedOf(own, c.price) + cost });
+  toast(`${c.name} passe au niveau ${lv} : ${LEVELS[lv].name} !`, "ok");
+  renderAll();
+};
+
+/* ---------- Vente : on récupère la moitié de ce qui a été investi ---------- */
 $("sell").onclick = () => { if (S.selected) { S.sellConfirm = S.selected.gid; renderCard(); $("sell-yes").focus(); } };
 $("sell-no").onclick = () => { S.sellConfirm = null; renderCard(); $("sell").focus(); };
 $("sell-yes").onclick = async () => {
@@ -394,7 +448,7 @@ let lbOpen = true;
 $("lb-toggle").onclick = () => { lbOpen = !lbOpen; $("lb").hidden = !lbOpen; $("lb-toggle").setAttribute("aria-expanded", lbOpen); };
 function renderBoard() {
   const totals = new Map();
-  for (const [, o] of S.owners) { const t = totals.get(o.o) || { value: 0, n: 0 }; t.value += o.p || 0; t.n++; totals.set(o.o, t); }
+  for (const [, o] of S.owners) { const t = totals.get(o.o) || { value: 0, n: 0 }; t.value += investedOf(o, 0); t.n++; totals.set(o.o, t); }
   const rows = [...totals].sort((a, b) => b[1].value - a[1].value).slice(0, 8);
   const ol = $("lb"); ol.textContent = "";
   $("lb-count").textContent = totals.size ? `${totals.size} joueur${totals.size > 1 ? "s" : ""}` : "";
@@ -467,7 +521,7 @@ function toast(msg, kind) { const t = $("toast"); t.textContent = msg; t.classNa
 })();
 
 /* ---------- Multijoueur : chargement et temps réel ---------- */
-const rowToOwner = r => ({ o: r.owner, p: Number(r.price), t: Date.parse(r.bought_at) });
+const rowToOwner = r => ({ o: r.owner, p: Number(r.price), t: Date.parse(r.bought_at), lv: r.level || 1, inv: Number(r.invested ?? r.price) });
 async function fetchAll(table, columns) {
   const out = [];
   for (let from = 0; ; from += 1000) {
@@ -483,7 +537,7 @@ async function initMultiplayer() {
   setStatus("", "Connexion au serveur de jeu…");
   try {
     const [owned, profiles] = await Promise.all([
-      fetchAll("owned_communes", "gid, owner, price, bought_at"),
+      fetchAll("owned_communes", "*"),
       fetchAll("profiles", "*"),
     ]);
     S.owners = new Map(owned.map(r => [r.gid, rowToOwner(r)]));
@@ -628,8 +682,8 @@ function myStats() {
   const mine = [];
   const totals = new Map();
   for (const [gid, o] of S.owners) {
-    totals.set(o.o, (totals.get(o.o) || 0) + (o.p || 0));
-    if (o.o === S.uid) { const i = N.byGid.get(gid); if (i !== undefined) mine.push({ i, p: o.p }); }
+    totals.set(o.o, (totals.get(o.o) || 0) + investedOf(o, 0));
+    if (o.o === S.uid) { const i = N.byGid.get(gid); if (i !== undefined) mine.push({ i, p: investedOf(o, 0), lv: levelOf(o) }); }
   }
   const value = totals.get(S.uid) || 0;
   const rank = value ? [...totals.values()].filter(v => v > value).length + 1 : null;
@@ -654,12 +708,12 @@ function renderProfile() {
     li.textContent = "Vous n'avez encore aucune commune. Zoomez sur une ville et cliquez sur une commune libre pour l'acheter.";
     list.append(li);
   }
-  for (const { i, p } of st.mine.slice(0, 200)) {
+  for (const { i, p, lv } of st.mine.slice(0, 200)) {
     const li = document.createElement("li"), b = document.createElement("button");
     b.type = "button";
     b.innerHTML = '<span class="sw"></span><span></span><span class="pr"></span>';
     b.children[1].textContent = `${N.name[i]} · ${countryOf(N.cc[i])}`;
-    b.children[2].textContent = fmtShort(p);
+    b.children[2].textContent = `Niv. ${lv} · ${fmtShort(p)}`;
     b.onclick = () => { closeModal("profile"); select(i, true); };
     li.append(b); list.append(li);
   }
@@ -763,7 +817,7 @@ $("pack-open").onclick = async () => {
   $("pack-odds").querySelector(`[data-tier="${row.tier}"]`)?.classList.add("hit");
   btn.hidden = true; $("pack-go").hidden = false; $("pack-go").focus();
   // Mise à jour immédiate (le temps réel confirmera)
-  S.owners.set(row.gid, { o: S.uid, p: Number(row.price), t: Date.now() });
+  S.owners.set(row.gid, { o: S.uid, p: Number(row.price), t: Date.now(), lv: 1, inv: Number(row.price) });
   const { data: me } = await sb.from("profiles").select("*").eq("id", S.uid).maybeSingle();
   if (me) { S.me = me; S.profiles.set(me.id, me); }
   renderAll();
