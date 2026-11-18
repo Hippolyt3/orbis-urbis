@@ -186,3 +186,6 @@ details .row-form { margin-bottom: 12px; }
 .sell > .danger { padding: 13px; }
 .sell-confirm { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .sell .danger:disabled { opacity: .6; cursor: wait; }
+
+/* Noms longs : ne passent plus sous le bouton de fermeture */
+#card h2 { padding-right: 30px; overflow-wrap: anywhere; }
