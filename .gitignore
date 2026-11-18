@@ -1,0 +1,5 @@
+.DS_Store
+.claude/
+# Ancienne version claude.ai (gardée sur l'ordinateur, pas dans le dépôt)
+/orbis-urbis.html
+/communes.txt

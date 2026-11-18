@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Orbis Urbis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="globe" aria-label="Globe terrestre en 3D"></div>
+
+<div class="hud" id="top-left">
+  <div class="brand">Orbis Urbis <small>la Terre est à vendre</small></div>
+  <div class="wallet glass" aria-live="polite">
+    <span class="k">Trésor</span><span class="k">Revenu</span><span class="k">Communes</span>
+    <span class="v gold" id="bal">0 ₵</span><span class="v" id="inc">0 ₵/h</span><span class="v" id="cnt">0</span>
+  </div>
+  <div class="status" id="status"><i></i><span>Chargement de la Terre…</span></div>
+</div>
+
+<div class="hud" id="top-right">
+  <button class="glass" id="account-btn" type="button"><span class="avatar" id="acc-avatar" aria-hidden="true">?</span><span id="acc-name">Se connecter</span></button>
+  <input id="search" type="search" placeholder="Chercher une commune…" autocomplete="off" aria-label="Chercher une commune">
+  <div id="results" class="glass" hidden></div>
+</div>
+
+<div class="modal" id="auth" hidden role="dialog" aria-modal="true" aria-labelledby="auth-title">
+  <div class="sheet glass">
+    <button class="close" data-close aria-label="Fermer">×</button>
+    <h2 id="auth-title">Rejoindre la partie</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab on" id="tab-login" type="button" role="tab" aria-selected="true">Connexion</button>
+      <button class="tab" id="tab-signup" type="button" role="tab" aria-selected="false">Créer un compte</button>
+    </div>
+    <form id="auth-form" novalidate>
+      <label id="f-pseudo-wrap" hidden>Pseudo<input id="f-pseudo" autocomplete="nickname" maxlength="20" placeholder="3 à 20 caractères"></label>
+      <label>Adresse e-mail<input id="f-email" type="email" autocomplete="email" placeholder="vous@exemple.fr"></label>
+      <label>Mot de passe<input id="f-pass" type="password" autocomplete="current-password" placeholder="6 caractères minimum"></label>
+      <p class="form-msg" id="auth-msg" role="alert"></p>
+      <button class="primary" id="auth-submit" type="submit">Se connecter</button>
+      <button class="linkish" id="forgot" type="button">Mot de passe oublié ?</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="pack" hidden role="dialog" aria-modal="true" aria-labelledby="pack-title">
+  <div class="sheet glass pack-sheet">
+    <button class="close" data-close aria-label="Fermer">×</button>
+    <h2 id="pack-title">Votre pack de bienvenue</h2>
+    <p class="pack-lead">Une commune libre du monde entier vous est offerte. Plus elle est grande, plus elle est rare.</p>
+    <div class="pack-card" id="pack-card" aria-live="polite">
+      <div class="pack-face pack-back"><span>?</span></div>
+      <div class="pack-face pack-front">
+        <span class="pack-tier" id="pack-tier"></span>
+        <strong id="pack-name"></strong>
+        <span id="pack-country"></span>
+        <span class="pack-meta" id="pack-meta"></span>
+      </div>
+    </div>
+    <ul class="odds" id="pack-odds" aria-label="Chances par catégorie"></ul>
+    <p class="form-msg" id="pack-msg" role="alert"></p>
+    <button class="primary" id="pack-open" type="button">Ouvrir le pack</button>
+    <button class="primary" id="pack-go" type="button" hidden>Voir ma commune</button>
+  </div>
+</div>
+
+<div class="modal" id="profile" hidden role="dialog" aria-modal="true" aria-labelledby="p-pseudo">
+  <div class="sheet glass wide">
+    <button class="close" data-close aria-label="Fermer">×</button>
+    <div class="p-head">
+      <span class="avatar big" id="p-avatar" aria-hidden="true"></span>
+      <div><h2 id="p-pseudo"></h2><div class="p-sub" id="p-sub"></div></div>
+    </div>
+    <div class="facts p-stats">
+      <div class="fact"><span class="k">Trésor</span><span class="v" id="p-bal"></span></div>
+      <div class="fact"><span class="k">Revenu</span><span class="v" id="p-inc"></span></div>
+      <div class="fact"><span class="k">Communes</span><span class="v" id="p-cnt"></span></div>
+      <div class="fact"><span class="k">Valeur de l'empire</span><span class="v" id="p-val"></span></div>
+      <div class="fact"><span class="k">Classement</span><span class="v" id="p-rank"></span></div>
+    </div>
+    <h3>Mes communes</h3>
+    <ul class="p-list" id="p-list"></ul>
+    <details id="p-edit">
+      <summary>Modifier mon profil</summary>
+      <form id="rename-form" class="row-form" novalidate>
+        <label>Pseudo<input id="p-new-pseudo" maxlength="20" autocomplete="nickname"></label>
+        <button class="secondary" type="submit">Enregistrer</button>
+      </form>
+      <form id="pass-form" class="row-form" novalidate>
+        <label>Nouveau mot de passe<input id="p-new-pass" type="password" autocomplete="new-password" placeholder="6 caractères minimum"></label>
+        <button class="secondary" type="submit">Changer</button>
+      </form>
+    </details>
+    <p class="form-msg" id="p-msg" role="alert"></p>
+    <button class="primary" id="p-pack" type="button" hidden>Ouvrir mon pack de bienvenue</button>
+    <div class="p-actions">
+      <button class="secondary" id="logout" type="button">Se déconnecter</button>
+      <button class="linkish danger-text" id="del-start" type="button">Supprimer mon compte</button>
+    </div>
+    <div class="danger-box" id="del-confirm" hidden>
+      <p>Votre compte et toutes vos communes seront supprimés définitivement. Tapez votre pseudo pour confirmer.</p>
+      <div class="row-form"><input id="del-pseudo" aria-label="Votre pseudo pour confirmer"><button class="danger" id="del-go" type="button">Supprimer définitivement</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="hud glass" id="card" hidden>
+  <button class="close" id="close" aria-label="Fermer la fiche">×</button>
+  <div>
+    <div class="country" id="c-country"></div>
+    <h2 id="c-name"></h2>
+    <div class="coords" id="c-coords"></div>
+  </div>
+  <div class="facts">
+    <div class="fact"><span class="k">Habitants</span><span class="v" id="c-pop"></span></div>
+    <div class="fact"><span class="k">Prix</span><span class="v" id="c-price"></span></div>
+    <div class="fact"><span class="k">Revenu</span><span class="v" id="c-yield"></span></div>
+    <div class="fact"><span class="k">Rang mondial</span><span class="v" id="c-rank"></span></div>
+  </div>
+  <div class="owner" id="c-owner"></div>
+  <button id="buy">Acheter</button>
+  <p class="note" id="c-note"></p>
+</div>
+
+<div class="hud glass" id="board">
+  <button class="lb-head" id="lb-toggle" aria-expanded="true"><span>Classement des empires</span><span id="lb-count"></span></button>
+  <ol id="lb"></ol>
+</div>
+
+<div class="hud" id="hint">Glissez pour tourner · pincez ou molette pour zoomer · clic droit + glisser pour incliner la vue</div>
+<div class="hud glass" id="toast" hidden role="status"></div>
+
+<script>window.CESIUM_BASE_URL = "https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/";</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/mvt.js"></script>
+<script src="js/boundaries.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

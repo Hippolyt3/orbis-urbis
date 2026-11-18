@@ -1,0 +1,110 @@
+# Orbis Urbis
+
+Un globe 3D dans l'espace où les joueurs achètent les communes du monde (225 951 lieux de plus de 500 habitants, source GeoNames).
+
+## Lancer le jeu
+
+Double-cliquez sur **Lancer Orbis Urbis.command**. Le jeu s'ouvre dans votre navigateur à l'adresse http://localhost:8770.
+La première fois, macOS peut bloquer le fichier : faites un clic droit dessus, choisissez **Ouvrir**, puis confirmez.
+
+Ouvrir `index.html` directement ne fonctionne pas : le navigateur refuse alors de charger la liste des communes.
+
+## Brancher Supabase (comptes, profils, multijoueur)
+
+Sans Supabase, on peut explorer le globe mais pas acheter. Supabase est gratuit pour commencer.
+
+1. Créez un compte sur https://supabase.com, puis un **nouveau projet** (notez le mot de passe de la base, il ne sert pas dans le jeu).
+2. Dans le projet, ouvrez **SQL Editor > New query**, collez tout le contenu de `supabase/schema.sql`, puis cliquez sur **Run**. Cela crée les tables, les règles de sécurité et la fonction d'achat.
+   Ensuite, toujours dans **SQL Editor**, exécutez de la même façon `supabase/02_pack_bienvenue.sql` (pack de bienvenue et prix vérifiés par le serveur).
+   Puis remplissez le catalogue des communes : **Table Editor > communes > Insert > Import data from CSV**, choisissez `supabase/communes.csv` (225 951 lignes, environ 9 Mo) et validez l'import.
+3. Ouvrez **Project Settings > API** (ou **Data API**) et copiez :
+   - l'**URL du projet** (`https://xxxx.supabase.co`),
+   - la clé publique **anon** (ou **publishable**).
+4. Collez-les dans `js/config.js`, dans `supabaseUrl` et `supabaseAnonKey`. N'y mettez jamais la clé `service_role` ou `secret`.
+5. Dans **Authentication > URL Configuration**, mettez `http://localhost:8770` comme **Site URL** : c'est là que mènent les liens de confirmation et de mot de passe oublié.
+6. Rechargez le jeu. Le statut en haut à gauche indique « En ligne » et le bouton en haut à droite propose de se connecter.
+
+Par défaut, Supabase envoie un e-mail de confirmation à chaque inscription. Pour tester plus vite, vous pouvez le désactiver dans **Authentication > Sign In / Providers > Email > Confirm email**. Le service d'e-mail gratuit de Supabase est limité à quelques messages par heure : pour un vrai lancement, branchez votre propre service d'envoi (SMTP).
+
+### Ce que fait Supabase
+
+- **Comptes** : inscription avec pseudo, e-mail et mot de passe ; connexion ; mot de passe oublié.
+- **Profil** (bouton en haut à droite) : trésor, revenu, nombre de communes, valeur de l'empire, classement, liste de vos communes. On peut y changer de pseudo et de mot de passe, se déconnecter ou supprimer son compte (ses communes sont alors libérées).
+- **Multijoueur** : les achats et le classement sont partagés en direct entre tous les joueurs. Une commune achetée par quelqu'un d'autre devient rouge sur votre écran sans recharger la page.
+- **Sécurité** : le trésor est calculé et vérifié par le serveur ; un joueur ne peut pas modifier son argent ni acheter une commune déjà prise.
+
+## Pack de bienvenue
+
+À sa première connexion, chaque joueur ouvre un pack qui lui offre **une commune libre**, tirée au sort par le serveur selon sa taille :
+
+| Catégorie | Taille | Chance |
+|---|---|---|
+| Capitale | capitales des pays | 0,0001 % |
+| Métropole | 1 million d'habitants et plus | 0,01 % |
+| Grande ville | 100 000 à 1 million | 0,5 % |
+| Ville | 20 000 à 100 000 | 4,4899 % |
+| Petite ville | 5 000 à 20 000 | 20 % |
+| Village | moins de 5 000 | 75 % |
+
+Le tirage ne propose que des communes qui n'ont pas encore de propriétaire. Si toutes les communes de la catégorie tirée sont prises, il passe à la catégorie plus petite, puis à la plus grande. Chaque compte n'a droit qu'à un seul pack. S'il ferme la fenêtre, le joueur peut l'ouvrir plus tard depuis son profil.
+
+Pour changer les chances, modifiez la ligne `odds` dans `supabase/02_pack_bienvenue.sql`, exécutez de nouveau le fichier, puis mettez à jour l'affichage (`TIERS` dans `js/game.js`).
+
+## Commandes
+
+- **Glisser** (clic gauche) : faire tourner la Terre
+- **Pincer à deux doigts** sur le pavé tactile, comme sur un smartphone : zoomer vers l'endroit pincé
+- **Molette** de souris : zoomer et dézoomer
+- **Clic droit + glisser** : incliner la vue
+- **Clic** sur une commune : ouvrir sa fiche
+
+## Limites des communes
+
+Le quadrillage doré montre les limites des communes, en blanc celles des départements, des régions et des pays. Il vient des tuiles gratuites OpenFreeMap (données OpenStreetMap), apparaît au fur et à mesure du zoom, et s'affiche par-dessus l'imagerie satellite (pas sur la Terre 3D de Google). Les points des communes apparaissent en même temps que les limites des villes.
+
+Les arrondissements et quartiers (Paris, Lyon, Marseille, « Salpêtrière », « Maison Blanche »…) ne sont ni affichés ni achetables : en France, il n'y a qu'un lieu par commune.
+
+Vos communes sont marquées d'un **point vert** visible à toutes les échelles, même depuis l'espace. Les communes des autres joueurs apparaissent **en rouge** quand on zoome au niveau d'une ville.
+
+Pour régénérer la liste des communes : `python3 tools/build_communes.py cities500.txt data/communes.txt supabase/communes.csv` (fichier à télécharger sur https://download.geonames.org/export/dump/cities500.zip).
+
+## Économie
+
+- **Trésor de départ** : 0 ₵ (réglé dans `supabase/schema.sql`, fonction `handle_new_user`)
+- **Prix d'une commune** : 1 000 ₵ + 0,50 ₵ par habitant (un village : environ 1 800 ₵, Versailles : 43 708 ₵, Lyon : 261 387 ₵, Paris : 1,07 million, Tokyo : 4,87 millions, Shanghai : 12,4 millions). Réglage en haut de `js/game.js`.
+- **Revenu** : 15 % du prix par heure, donc une commune est rentabilisée en un peu moins de 7 heures
+
+Avec un trésor de départ à 0 ₵, un nouveau joueur ne peut rien acheter. Pour tester, donnez-vous des crédits dans Supabase : **Table Editor > profiles**, modifiez la colonne `balance` de votre ligne.
+
+## Activer la vraie Terre de Google Earth (bâtiments et relief en 3D)
+
+Sans clé, le globe affiche des photos satellite Esri vues du dessus. Pour avoir les villes en 3D de Google, remplissez **une** des deux clés dans `js/config.js`.
+
+**Option A, la plus simple : un jeton Cesium ion (gratuit)**
+1. Créez un compte sur https://ion.cesium.com (offre Community gratuite).
+2. Dans *Asset Depot*, ajoutez l'asset **Google Photorealistic 3D Tiles** à votre compte.
+3. Dans *Access Tokens*, copiez votre jeton par défaut.
+4. Collez-le dans `cesiumIonToken: "..."` dans `js/config.js`, puis rechargez la page.
+
+**Option B : une clé Google Maps Platform**
+1. Sur https://console.cloud.google.com, créez un projet et activez la facturation (Google offre un crédit mensuel gratuit).
+2. Activez l'API **Map Tiles API**.
+3. Créez une clé API (menu *Identifiants*) et limitez-la à votre site.
+4. Collez-la dans `googleMapsApiKey: "..."` dans `js/config.js`.
+
+## Ce qui reste à faire pour un vrai jeu en ligne
+
+- **Hébergement** : mettre le dossier en ligne (Netlify, Vercel…), puis changer la **Site URL** dans Supabase et limiter vos clés Google à l'adresse du site.
+- **Licences** : l'imagerie Esri est utilisable pour un prototype. Pour un jeu public ou payant, vérifiez les conditions d'Esri, de Google, de Nominatim et d'OpenFreeMap (affichage des crédits en bas à gauche).
+
+## Fichiers
+
+- `index.html` : la page du jeu
+- `css/style.css` : l'apparence
+- `js/game.js` : le globe, les règles du jeu, les comptes et le multijoueur
+- `js/boundaries.js`, `js/mvt.js` : le calque des limites administratives
+- `js/config.js` : vos clés (Supabase, Google, Cesium)
+- `supabase/schema.sql` puis `supabase/02_pack_bienvenue.sql` : la base de données à installer dans Supabase
+- `supabase/communes.csv` : le catalogue des communes (prix et catégorie) à importer dans la table `communes`
+- `data/communes.txt` : les communes (id GeoNames, nom, pays, latitude, longitude, population)
+- `tools/build_communes.py` : le script qui fabrique `data/communes.txt`
