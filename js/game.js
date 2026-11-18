@@ -899,11 +899,12 @@ $("wb-go").onclick = () => { closeModal("welcome"); if (wbAction) wbAction(); };
 /* ---------- Défis du jour : jouer 10 min, 30 min, 1 h d'affilée ---------- */
 // Le serveur mesure la série (supabase/05_defis.sql) : le jeu lui envoie un signal par minute
 // tant que le joueur est actif. Identique aux montants du fichier SQL.
-// Un seul défi de temps, qui monte d'étape chaque jour (10 min → 30 min → 1 h)
+// Un seul défi de temps, qui monte d'étape chaque jour (5 min → 10 min → 30 min → 1 h)
 const CHALLENGES = [
-  { tier: 1, bit: 1, min: 10, reward: 300 },
-  { tier: 2, bit: 2, min: 30, reward: 1000 },
-  { tier: 3, bit: 4, min: 60, reward: 3000 },
+  { tier: 1, bit: 1, min: 5, reward: 100 },
+  { tier: 2, bit: 2, min: 10, reward: 300 },
+  { tier: 3, bit: 4, min: 30, reward: 1000 },
+  { tier: 4, bit: 8, min: 60, reward: 3000 },
 ];
 // Défi de collection, une seule fois par compte (supabase/06_defis_progressifs.sql)
 const OWN_CHALLENGES = [
