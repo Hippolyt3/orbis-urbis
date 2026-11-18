@@ -1,4 +1,4 @@
--- Orbis Urbis : coffres au trésor (toutes les 10 minutes) et événement de l'heure.
+-- Orbis Urbis : coffres au trésor (toutes les minutes) et événement de l'heure.
 -- À exécuter APRÈS les fichiers 01 à 07, dans SQL Editor. Fichier fabriqué par tools/build_chests_sql.py.
 --
 -- Coffre : caché dans une ville secrète. Les joueurs voient un cercle d'indice et creusent ;
@@ -5054,7 +5054,7 @@ insert into public.chest_spots (gid, cc, lat, lng) values
 ('890516','ZW',-20.936,29.007),
 ('889215','ZW',-16.517,28.8);
 
--- 2. Coffres, un par tranche de 10 minutes
+-- 2. Coffres, un par minute
 create table if not exists public.chests (
   slot       bigint primary key,
   spot_gid   text not null,
@@ -5081,7 +5081,7 @@ $$;
 create or replace function public.ensure_chest()
 returns public.chests language plpgsql security definer set search_path = public as $$
 declare
-  s bigint := floor(extract(epoch from now()) / 600);
+  s bigint := floor(extract(epoch from now()) / 60);
   ch public.chests;
   sp public.chest_spots;
   radius int := 120;
@@ -5111,7 +5111,7 @@ declare ch public.chests;
 begin
   ch := ensure_chest();
   return query select ch.slot, ch.cc, ch.hint_lat, ch.hint_lng, ch.radius_km, ch.reward, ch.winner,
-    (600 - (extract(epoch from now())::bigint % 600))::int;
+    (60 - (extract(epoch from now())::bigint % 60))::int;
 end $$;
 grant execute on function public.current_chest() to anon, authenticated;
 

@@ -26,7 +26,7 @@ Sans Supabase, on peut explorer le globe mais pas acheter. Supabase est gratuit 
 1. Créez un compte sur https://supabase.com, puis un **nouveau projet** (notez le mot de passe de la base, il ne sert pas dans le jeu).
 2. Dans le projet, ouvrez **SQL Editor > New query**, collez tout le contenu de `supabase/schema.sql`, puis cliquez sur **Run**. Cela crée les tables, les règles de sécurité et la fonction d'achat.
    Ensuite, toujours dans **SQL Editor**, exécutez de la même façon `supabase/02_pack_bienvenue.sql` (pack de bienvenue et prix vérifiés par le serveur).
-   Exécutez aussi `supabase/03_vente.sql` (vente des communes), puis `supabase/04_ameliorations.sql` (améliorations) `supabase/05_defis.sql`, `supabase/06_defis_progressifs.sql` puis `supabase/07_defi_5min.sql` (défis), et enfin `supabase/08_coffres_evenements.sql` (coffres et événements).
+   Exécutez aussi `supabase/03_vente.sql` (vente des communes), puis `supabase/04_ameliorations.sql` (améliorations) `supabase/05_defis.sql`, `supabase/06_defis_progressifs.sql` puis `supabase/07_defi_5min.sql` (défis), puis `supabase/08_coffres_evenements.sql` (coffres et événements) et `supabase/09_coffres_minute.sql` (un coffre par minute).
    Puis remplissez le catalogue des communes : **Table Editor > communes > Insert > Import data from CSV**, choisissez `supabase/communes.csv` (225 951 lignes, environ 9 Mo) et validez l'import.
 3. Ouvrez **Project Settings > API** (ou **Data API**) et copiez :
    - l'**URL du projet** (`https://xxxx.supabase.co`),
@@ -87,7 +87,7 @@ Pour changer les chiffres : `play_challenge` et `owned_challenge` dans les fichi
 
 ## Coffres au trésor
 
-Toutes les 10 minutes, un coffre de 500 à 3 000 ₵ est caché dans une ville du monde. Le bandeau en bas de l'écran indique sa récompense, le pays et le temps restant, et un **cercle doré** d'environ 120 km apparaît sur le globe. **Chercher** emmène le joueur au-dessus du cercle et active la fouille : chaque clic dans le cercle donne un coup de pelle, et le serveur répond par la distance au coffre (froid, tiède, chaud, brûlant). Le premier joueur qui creuse à moins de 8 km du coffre gagne la récompense. L'emplacement exact n'est jamais envoyé aux joueurs, et le serveur impose 2 secondes entre deux coups de pelle.
+Toutes les minutes, un coffre de 500 à 3 000 ₵ est caché dans une ville du monde. Le bandeau en bas de l'écran indique sa récompense, le pays et le temps restant, et un **cercle doré** d'environ 120 km apparaît sur le globe. **Chercher** emmène le joueur au-dessus du cercle et active la fouille : chaque clic dans le cercle donne un coup de pelle, et le serveur répond par la distance au coffre (froid, tiède, chaud, brûlant). Le premier joueur qui creuse à moins de 8 km du coffre gagne la récompense. L'emplacement exact n'est jamais envoyé aux joueurs, et le serveur impose 2 secondes entre deux coups de pelle.
 
 ## Événement de l'heure
 
@@ -157,7 +157,7 @@ Sans clé, le globe affiche des photos satellite Esri vues du dessus. Pour avoir
 - `js/game.js` : le globe, les règles du jeu, les comptes et le multijoueur
 - `js/boundaries.js`, `js/mvt.js` : le calque des limites administratives
 - `js/config.js` : vos clés (Supabase, Google, Cesium)
-- `supabase/schema.sql`, puis `02_pack_bienvenue.sql`, `03_vente.sql`, `04_ameliorations.sql`, `05_defis.sql`, `06_defis_progressifs.sql`, `07_defi_5min.sql` et `08_coffres_evenements.sql` : la base de données à installer dans Supabase, dans cet ordre
+- `supabase/schema.sql`, puis `02_pack_bienvenue.sql`, `03_vente.sql`, `04_ameliorations.sql`, `05_defis.sql`, `06_defis_progressifs.sql`, `07_defi_5min.sql`, `08_coffres_evenements.sql` et `09_coffres_minute.sql` : la base de données à installer dans Supabase, dans cet ordre
 - `supabase/communes.csv` : le catalogue des communes (prix et catégorie) à importer dans la table `communes`
 - `data/communes.txt` : les communes (id GeoNames, nom, pays, latitude, longitude, population)
 - `tools/build_communes.py` : le script qui fabrique `data/communes.txt`

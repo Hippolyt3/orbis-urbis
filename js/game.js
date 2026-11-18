@@ -1051,7 +1051,7 @@ async function refreshLive() {
   }
   renderLive();
 }
-setInterval(refreshLive, 30000);
+setInterval(refreshLive, 10000);   // un coffre par minute : on vérifie souvent s'il a été trouvé
 setInterval(() => {
   if ((CHEST.endsAt && Date.now() > CHEST.endsAt + 1000) || (EVENT.endsAt && Date.now() > EVENT.endsAt + 1000)) { CHEST.endsAt = EVENT.endsAt = 0; refreshLive(); }
   renderLive();
