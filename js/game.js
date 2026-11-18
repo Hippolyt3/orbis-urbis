@@ -294,6 +294,7 @@ function flyTo(c) {
 }
 function select(i, fly) {
   const c = commune(i);
+  S.sellConfirm = null;
   S.selected = c;
   if (fly) flyTo(c);
   selLayer.removeAll();
@@ -316,6 +317,7 @@ function renderCard() {
   $("c-rank").textContent = "#" + fmt(c.rank);
   const box = $("c-owner"), buy = $("buy"), note = $("c-note");
   box.className = "owner"; box.textContent = "";
+  buy.hidden = false; $("sell-box").hidden = true;
   const sw = document.createElement("span"); sw.className = "sw";
   const label = document.createElement("span");
   if (own?.o) {
@@ -324,8 +326,18 @@ function renderCard() {
     sw.style.background = colorFor(own.o);
     const since = new Date(own.t).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
     label.textContent = mine ? `Cette commune vous appartient depuis le ${since}` : `Possédée par ${nameFor(own.o)} depuis le ${since}`;
-    buy.disabled = true; buy.textContent = mine ? "Dans votre empire" : "Déjà vendue";
-    note.textContent = mine ? `Elle vous rapporte ${fmt(c.price * YIELD)} ₵ par heure.` : "Chaque commune n'a qu'un propriétaire. Il en reste des centaines de milliers ailleurs.";
+    buy.disabled = true; buy.textContent = "Déjà vendue";
+    if (mine) {
+      const refund = Math.floor((own.p || c.price) / 2), confirming = S.sellConfirm === c.gid;
+      buy.hidden = true; $("sell-box").hidden = false;
+      $("sell").hidden = confirming; $("sell-confirm").hidden = !confirming;
+      $("sell").textContent = `Vendre pour ${fmt(refund)} ₵`;
+      $("sell-yes").textContent = S.busy ? "Vente en cours…" : "Oui, vendre";
+      $("sell-yes").disabled = S.busy;
+      note.textContent = confirming
+        ? `Vous récupérez la moitié de sa valeur, ${fmt(refund)} ₵, et perdez ${fmt((own.p || c.price) * YIELD)} ₵ de revenu par heure. Elle redeviendra libre pour tous les joueurs.`
+        : `Elle vous rapporte ${fmt((own.p || c.price) * YIELD)} ₵ par heure. En la vendant, vous récupérez la moitié de sa valeur.`;
+    } else note.textContent = "Chaque commune n'a qu'un propriétaire. Il en reste des centaines de milliers ailleurs.";
   } else {
     sw.style.background = "rgba(220,235,255,.6)";
     label.textContent = "Commune libre, sans propriétaire";
@@ -358,6 +370,22 @@ $("buy").onclick = async () => {
   S.me = data; S.profiles.set(S.uid, data);
   S.owners.set(c.gid, { o: S.uid, p: c.price, t: Date.now() });
   toast(`${c.name} rejoint votre empire.`, "ok");
+  renderAll();
+};
+
+/* ---------- Vente : on récupère la moitié de la valeur ---------- */
+$("sell").onclick = () => { if (S.selected) { S.sellConfirm = S.selected.gid; renderCard(); $("sell-yes").focus(); } };
+$("sell-no").onclick = () => { S.sellConfirm = null; renderCard(); $("sell").focus(); };
+$("sell-yes").onclick = async () => {
+  const c = S.selected; if (!c || S.busy || S.owners.get(c.gid)?.o !== S.uid) return;
+  S.busy = true; renderCard();
+  const { data, error } = await sb.rpc("sell_commune", { p_gid: c.gid });
+  S.busy = false; S.sellConfirm = null;
+  if (error) { toast(frError(error), "err"); renderCard(); return; }
+  const before = balance();
+  S.me = data; S.profiles.set(S.uid, data);
+  S.owners.delete(c.gid);
+  toast(`${c.name} est vendue : +${fmt(balance() - before)} ₵.`, "ok");
   renderAll();
 };
 
@@ -745,4 +773,4 @@ $("pack-go").onclick = () => {
   if (packResult?.i !== undefined) select(packResult.i, true);
 };
 
-window.orbis = { viewer, N, S, drawMine };   // pour le débogage dans la console
+window.orbis = { viewer, N, S, drawMine, select, renderCard };   // pour le débogage dans la console
