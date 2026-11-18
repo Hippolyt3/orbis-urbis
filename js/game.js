@@ -581,6 +581,7 @@ async function setUser(user) {
   renderAccount(); renderAll();
   if (!S.uid && !$("profile").hidden) closeModal("profile");
   maybeOfferPack();
+  maybeWelcomeBack();
 }
 
 /* ---------- Bouton de compte ---------- */
@@ -827,4 +828,71 @@ $("pack-go").onclick = () => {
   if (packResult?.i !== undefined) select(packResult.i, true);
 };
 
-window.orbis = { viewer, N, S, drawMine, select, renderCard };   // pour le débogage dans la console
+/* ---------- « Pendant ton absence » : résumé au retour du joueur ---------- */
+// La dernière visite est retenue par ce navigateur, pour chaque compte.
+const AWAY_MIN_MS = 10 * 60 * 1000;          // pas de résumé pour une absence de moins de 10 minutes
+const seenKey = uid => "orbis-urbis-vu:" + uid;
+let welcomeShown = false, wbAction = null;
+function readSeen(uid) { try { return Number(localStorage.getItem(seenKey(uid))) || 0; } catch (e) { return 0; } }
+function markSeen() { if (S.uid) try { localStorage.setItem(seenKey(S.uid), String(Date.now())); } catch (e) {} }
+setInterval(() => { if (!document.hidden) markSeen(); }, 60000);
+addEventListener("pagehide", markSeen);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { markSeen(); welcomeShown = false; } else maybeWelcomeBack();
+});
+function fmtDuration(ms) {
+  const min = Math.round(ms / 60000), d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+  if (d) return `${d} j${h ? " " + h + " h" : ""}`;
+  if (h) return `${h} h${m ? " " + String(m).padStart(2, "0") : ""}`;
+  return `${m} min`;
+}
+// L'amélioration la moins chère parmi mes communes
+function cheapestUpgrade() {
+  let best = null;
+  for (const [gid, o] of S.owners) {
+    if (o.o !== S.uid) continue;
+    const lv = levelOf(o), i = N.byGid.get(gid);
+    if (lv >= 5 || i === undefined) continue;
+    const cost = Math.ceil(o.p * LEVELS[lv + 1].cost);
+    if (!best || cost < best.cost) best = { i, cost, next: LEVELS[lv + 1].name };
+  }
+  return best;
+}
+function maybeWelcomeBack() {
+  if (!S.uid || !S.me || welcomeShown || S.me.pack_opened === false || !N.count) return;
+  const last = readSeen(S.uid), away = Date.now() - last;
+  markSeen();
+  if (!last || away < AWAY_MIN_MS) return;
+  const rate = Number(S.me.rate) || 0, earned = rate * away / 3.6e6;
+  if (earned < 1) return;
+  welcomeShown = true;
+  const pseudo = S.me.pseudo ? `, ${S.me.pseudo}` : "";
+  $("wb-title").textContent = `Bon retour${pseudo}\u00a0!`;
+  $("wb-away").textContent = `Pendant ton absence (${fmtDuration(away)}), tes communes t'ont rapporté`;
+  $("wb-bal").textContent = fmt(balance()) + " ₵";
+  $("wb-inc").textContent = "+" + fmt(rate) + " ₵/h";
+  const up = cheapestUpgrade(), bal = balance();
+  if (up && bal >= up.cost) {
+    $("wb-next").textContent = `Tu peux maintenant construire : ${up.next} à ${N.name[up.i]} (${fmt(up.cost)} ₵).`;
+    $("wb-go").textContent = `Aller à ${N.name[up.i]}`; wbAction = () => select(up.i, true);
+  } else if (up) {
+    $("wb-next").textContent = `Encore ${fmt(up.cost - bal)} ₵, environ ${fmtDuration((up.cost - bal) / rate * 3.6e6)}, pour construire : ${up.next} à ${N.name[up.i]}.`;
+    $("wb-go").textContent = `Voir ${N.name[up.i]}`; wbAction = () => select(up.i, true);
+  } else {
+    $("wb-next").textContent = "Toutes tes communes sont au niveau maximum. De quoi en acheter une nouvelle ?";
+    $("wb-go").textContent = "Continuer"; wbAction = null;
+  }
+  openModal("welcome");
+  // Le montant défile jusqu'au total gagné
+  const el = $("wb-amount"), t0 = performance.now(), dur = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1200;
+  const tick = now => {
+    const k = dur ? Math.min(1, (now - t0) / dur) : 1;
+    el.textContent = "+" + fmt(earned * (1 - Math.pow(1 - k, 3))) + " ₵";
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  $("wb-go").focus();
+}
+$("wb-go").onclick = () => { closeModal("welcome"); if (wbAction) wbAction(); };
+
+window.orbis = { viewer, N, S, drawMine, select, renderCard, maybeWelcomeBack };   // pour le débogage dans la console

@@ -75,6 +75,10 @@ Sur la fiche d'une commune qui vous appartient, **Améliorer** construit le bât
 
 Le point vert grossit avec le niveau, et il a un contour doré au niveau 5. Les améliorations sont vérifiées par le serveur. Pour changer les chiffres, modifiez `supabase/04_ameliorations.sql` (fonctions `level_multiplier` et `upgrade_cost_ratio`) et `LEVELS` dans `js/game.js`.
 
+## Pendant ton absence
+
+Quand un joueur revient après plus de 10 minutes, une fenêtre lui montre ce que ses communes ont rapporté pendant son absence, son trésor, et la prochaine amélioration à faire (ou combien de temps il faut encore attendre pour se l'offrir). Un bouton l'emmène directement à la commune concernée. La date de dernière visite est retenue par chaque navigateur.
+
 ## Vendre une commune
 
 Sur la fiche d'une commune qui vous appartient, **Vendre** vous rend **la moitié de tout ce que vous y avez investi** (achat et améliorations). Une confirmation est demandée avant la vente. Vous perdez le revenu horaire qu'elle rapportait, et la commune redevient libre pour tous les joueurs. La vente est faite et vérifiée par le serveur.

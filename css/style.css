@@ -202,3 +202,10 @@ details .row-form { margin-bottom: 12px; }
 #upgrade:disabled { opacity: .55; cursor: not-allowed; }
 .levels .note { margin: 0; }
 .levels .note:empty, #c-level #upgrade[hidden] + .note { display: none; }
+
+/* ---------- Pendant ton absence ---------- */
+.wb-sheet { width: min(400px, 100%); text-align: center; }
+.wb-away { margin: -4px 0 0; color: var(--ink-dim); font-size: 14px; line-height: 1.5; }
+.wb-amount { font: 800 44px/1 var(--f-display); color: #5ee39a; font-variant-numeric: tabular-nums; text-shadow: 0 0 28px rgba(52,210,122,.45); overflow-wrap: anywhere; }
+.wb-sheet .facts { text-align: left; padding: 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
+.wb-next { margin: 0; font-size: 14px; line-height: 1.5; }
