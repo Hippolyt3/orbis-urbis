@@ -582,6 +582,7 @@ async function setUser(user) {
   if (!S.uid && !$("profile").hidden) closeModal("profile");
   maybeOfferPack();
   maybeWelcomeBack();
+  heartbeat();
 }
 
 /* ---------- Bouton de compte ---------- */
@@ -895,4 +896,82 @@ function maybeWelcomeBack() {
 }
 $("wb-go").onclick = () => { closeModal("welcome"); if (wbAction) wbAction(); };
 
-window.orbis = { viewer, N, S, drawMine, select, renderCard, maybeWelcomeBack };   // pour le débogage dans la console
+/* ---------- Défis du jour : jouer 10 min, 30 min, 1 h d'affilée ---------- */
+// Le serveur mesure la série (supabase/05_defis.sql) : le jeu lui envoie un signal par minute
+// tant que le joueur est actif. Identique aux montants du fichier SQL.
+const CHALLENGES = [
+  { tier: 1, bit: 1, min: 10, reward: 300 },
+  { tier: 2, bit: 2, min: 30, reward: 1000 },
+  { tier: 3, bit: 4, min: 60, reward: 3000 },
+];
+const IDLE_MS = 170000;   // un peu moins de 3 minutes, la limite du serveur
+const PLAY = { startLocal: null, claimed: 0, lastActivity: Date.now(), available: false, busy: false };
+["pointerdown", "pointermove", "wheel", "keydown", "touchstart"].forEach(ev =>
+  addEventListener(ev, () => { PLAY.lastActivity = Date.now(); }, { passive: true, capture: true }));
+const idle = () => document.hidden || Date.now() - PLAY.lastActivity > IDLE_MS;
+async function heartbeat() {
+  if (!sb || !S.uid) { PLAY.available = false; renderQuests(); return; }
+  if (idle()) { renderQuests(); return; }
+  const { data, error } = await sb.rpc("play_heartbeat");
+  if (error) { PLAY.available = false; renderQuests(); return; }   // fichier 05_defis.sql pas encore installé
+  const row = Array.isArray(data) ? data[0] : data;
+  PLAY.available = true;
+  PLAY.startLocal = Date.now() - row.session_seconds * 1000;
+  PLAY.claimed = row.claimed || 0;
+  renderQuests();
+}
+setInterval(heartbeat, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { PLAY.lastActivity = Date.now(); heartbeat(); } });
+setInterval(() => renderQuests(), 1000);
+
+let questsOpen = (() => { try { const v = localStorage.getItem("orbis-urbis-defis-ouverts"); return v === null ? innerWidth > 720 : v === "1"; } catch (e) { return true; } })();
+$("q-toggle").onclick = () => {
+  questsOpen = !questsOpen;
+  try { localStorage.setItem("orbis-urbis-defis-ouverts", questsOpen ? "1" : "0"); } catch (e) {}
+  renderQuests();
+};
+function renderQuests() {
+  const box = $("quests");
+  box.hidden = !(S.uid && PLAY.available);
+  if (box.hidden) return;
+  $("q-body").hidden = !questsOpen;
+  $("q-toggle").setAttribute("aria-expanded", questsOpen);
+  const elapsed = PLAY.startLocal ? (Date.now() - PLAY.startLocal) / 60000 : 0;
+  const paused = idle();
+  const done = CHALLENGES.filter(c => PLAY.claimed & c.bit).length;
+  $("q-session").textContent = paused ? "en pause" : `${Math.floor(elapsed)} min · ${done}/3`;
+  if (!questsOpen) return;
+  const ul = $("q-list");
+  if (ul.children.length !== CHALLENGES.length) {
+    ul.textContent = "";
+    for (const c of CHALLENGES) {
+      const li = document.createElement("li");
+      li.innerHTML = '<div class="q-row"><span class="q-label"></span><span class="q-reward"></span></div><div class="q-bar"><i></i></div><button class="q-claim" type="button" hidden>Réclamer</button>';
+      li.querySelector(".q-label").textContent = c.min < 60 ? `Jouer ${c.min} min d'affilée` : "Jouer 1 h d'affilée";
+      li.querySelector(".q-reward").textContent = `+${fmt(c.reward)} ₵`;
+      li.querySelector(".q-claim").onclick = () => claimChallenge(c);
+      ul.append(li);
+    }
+  }
+  CHALLENGES.forEach((c, k) => {
+    const li = ul.children[k], claimed = !!(PLAY.claimed & c.bit), ready = !claimed && elapsed >= c.min;
+    li.className = claimed ? "claimed" : ready ? "ready" : "";
+    li.querySelector(".q-bar i").style.width = (claimed ? 100 : Math.min(100, elapsed / c.min * 100)) + "%";
+    const btn = li.querySelector(".q-claim");
+    btn.hidden = !ready; btn.disabled = PLAY.busy;
+    li.querySelector(".q-reward").textContent = claimed ? "Réclamé ✓" : `+${fmt(c.reward)} ₵`;
+  });
+}
+async function claimChallenge(c) {
+  if (PLAY.busy) return;
+  PLAY.busy = true; renderQuests();
+  const { data, error } = await sb.rpc("play_claim", { p_tier: c.tier });
+  PLAY.busy = false;
+  if (error) { toast(frError(error), "err"); heartbeat(); return; }
+  S.me = data; S.profiles.set(S.uid, data);
+  PLAY.claimed |= c.bit;
+  toast(`Défi réussi : +${fmt(c.reward)} ₵ !`, "ok");
+  renderAll(); renderQuests();
+}
+
+window.orbis = { viewer, N, S, drawMine, select, renderCard, maybeWelcomeBack, PLAY, renderQuests };   // pour le débogage dans la console

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css">
-<link rel="stylesheet" href="css/style.css?v=202611182007">
+<link rel="stylesheet" href="css/style.css?v=202611182012">
 </head>
 <body>
 
@@ -20,6 +20,13 @@
     <span class="v gold" id="bal">0 ₵</span><span class="v" id="inc">0 ₵/h</span><span class="v" id="cnt">0</span>
   </div>
   <div class="status" id="status"><i></i><span>Chargement de la Terre…</span></div>
+  <div class="glass quests" id="quests" hidden>
+    <button class="q-head" id="q-toggle" type="button" aria-expanded="true" aria-controls="q-body"><span>Défis du jour</span><span id="q-session"></span></button>
+    <div id="q-body">
+      <ul class="q-list" id="q-list"></ul>
+      <p class="q-note">Joue sans pause : 3 minutes sans bouger la souris ou le clavier remettent la série à zéro. Les défis reviennent chaque jour à minuit.</p>
+    </div>
+  </div>
 </div>
 
 <div class="hud" id="top-right">
@@ -165,9 +172,9 @@
 <script>window.CESIUM_BASE_URL = "https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/";</script>
 <script src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
-<script src="js/config.js?v=202611182007"></script>
-<script src="js/mvt.js?v=202611182007"></script>
-<script src="js/boundaries.js?v=202611182007"></script>
-<script src="js/game.js?v=202611182007"></script>
+<script src="js/config.js?v=202611182012"></script>
+<script src="js/mvt.js?v=202611182012"></script>
+<script src="js/boundaries.js?v=202611182012"></script>
+<script src="js/game.js?v=202611182012"></script>
 </body>
 </html>

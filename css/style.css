@@ -209,3 +209,25 @@ details .row-form { margin-bottom: 12px; }
 .wb-amount { font: 800 44px/1 var(--f-display); color: #5ee39a; font-variant-numeric: tabular-nums; text-shadow: 0 0 28px rgba(52,210,122,.45); overflow-wrap: anywhere; }
 .wb-sheet .facts { text-align: left; padding: 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
 .wb-next { margin: 0; font-size: 14px; line-height: 1.5; }
+
+/* ---------- Défis du jour ---------- */
+.quests { width: 260px; max-width: 100%; box-sizing: border-box; }
+.q-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: none; border: 0; color: var(--ink); cursor: pointer; font: 700 12px var(--f-display); letter-spacing: .06em; text-transform: uppercase; }
+.q-head span:last-child { font: 11px var(--f-data); color: var(--ink-dim); text-transform: none; letter-spacing: 0; }
+.q-head:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#q-body { padding: 0 14px 12px; }
+.q-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.q-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.q-reward { font: 12px var(--f-data); color: var(--gold); white-space: nowrap; }
+.q-list li.claimed .q-reward { color: #5ee39a; }
+.q-list li.claimed .q-label { color: var(--ink-dim); }
+.q-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); margin-top: 5px; overflow: hidden; }
+.q-bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--gold); transition: width .9s linear; }
+.q-list li.claimed .q-bar i { background: #34d27a; }
+.q-claim { margin-top: 6px; width: 100%; padding: 7px; border: 0; border-radius: 8px; font: 700 12px var(--f-display); cursor: pointer; background: linear-gradient(180deg, var(--gold), var(--gold-deep)); color: #1d1405; animation: q-pulse 1.4s ease-in-out infinite; }
+.q-claim:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+@keyframes q-pulse { 50% { box-shadow: 0 0 16px rgba(242,193,78,.6); } }
+.q-note { margin: 10px 0 0; font-size: 11px; line-height: 1.45; color: var(--ink-dim); }
+@media (prefers-reduced-motion: reduce) { .q-claim { animation: none; } .q-bar i { transition: none; } }
+.q-head span { white-space: nowrap; }
+.q-head span:first-child { font-size: 11px; }
