@@ -914,6 +914,7 @@ const OWN_CHALLENGES = [
   { tier: 4, bit: 8, target: 10, reward: 10000 },
 ];
 const IDLE_MS = 170000;   // un peu moins de 3 minutes, la limite du serveur
+const CLAIM_MARGIN_MIN = 0.25;   // 15 s de marge : l'horloge du serveur peut avoir quelques secondes de retard
 const PLAY = { startLocal: null, claimed: 0, lastActivity: Date.now(), available: false, busy: false };
 ["pointerdown", "pointermove", "wheel", "keydown", "touchstart"].forEach(ev =>
   addEventListener(ev, () => { PLAY.lastActivity = Date.now(); }, { passive: true, capture: true }));
@@ -964,7 +965,7 @@ function renderQuests() {
     ["time", "own"].forEach(kind => {
       const li = document.createElement("li");
       li.innerHTML = '<div class="q-row"><span class="q-label"></span><span class="q-reward"></span></div><div class="q-bar"><i></i></div><button class="q-claim" type="button" hidden>Réclamer</button>';
-      li.querySelector(".q-claim").onclick = () => kind === "time" ? claimTime() : claimOwned();
+      li.querySelector(".q-claim").onclick = () => kind === "time" ? claimTime(false) : claimOwned();
       ul.append(li);
     });
   }
@@ -972,7 +973,7 @@ function renderQuests() {
   const t = CHALLENGES.find(c => !(PLAY.claimed & c.bit));
   if (t) questRow(ul.children[0], {
     label: t.min < 60 ? `Jouer ${t.min} min d'affilée` : "Jouer 1 h d'affilée",
-    reward: t.reward, pct: elapsed / t.min * 100, ready: elapsed >= t.min && !paused,
+    reward: t.reward, pct: elapsed / t.min * 100, ready: elapsed >= t.min + CLAIM_MARGIN_MIN && !paused,
   });
   else questRow(ul.children[0], { label: "Jouer 1 h d'affilée", pct: 100, doneText: "Fait ✓ · demain" });
   // Défi de collection : la première étape pas encore réclamée
@@ -984,12 +985,19 @@ function renderQuests() {
   });
   else questRow(ul.children[1], { label: "Posséder 10 communes", pct: 100, doneText: "Terminé ✓" });
 }
-async function claimTime() {
+async function claimTime(retry) {
   const c = CHALLENGES.find(x => !(PLAY.claimed & x.bit));
   if (!c || PLAY.busy) return;
   PLAY.busy = true; renderQuests();
   const { data, error } = await sb.rpc("play_claim", { p_tier: c.tier });
   PLAY.busy = false;
+  if (error && /patience/i.test(error.message || "") && !retry) {
+    // Le serveur n'a pas encore compté tout le temps : on se recale et on réessaie une fois
+    toast("Encore quelques secondes…", "ok");
+    await heartbeat();
+    setTimeout(() => claimTime(true), 20000);
+    return;
+  }
   if (error) { toast(frError(error), "err"); heartbeat(); return; }
   S.me = data; S.profiles.set(S.uid, data);
   PLAY.claimed |= c.bit;
