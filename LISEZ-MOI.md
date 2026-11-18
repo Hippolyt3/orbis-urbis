@@ -2,7 +2,17 @@
 
 Un globe 3D dans l'espace où les joueurs achètent les communes du monde (225 951 lieux de plus de 500 habitants, source GeoNames).
 
-## Lancer le jeu
+## Jouer en ligne
+
+Le jeu est en ligne : **https://hippolyt3.github.io/orbis-urbis/**
+
+Il est publié automatiquement par GitHub Pages depuis la branche `main` du dépôt https://github.com/Hippolyt3/orbis-urbis : chaque modification envoyée sur GitHub met le site à jour en une ou deux minutes.
+
+Dans Supabase, **Authentication > URL Configuration** doit contenir l'adresse du site :
+- **Site URL** : `https://hippolyt3.github.io/orbis-urbis/`
+- **Redirect URLs** : `https://hippolyt3.github.io/orbis-urbis/` et `http://localhost:8770` (pour continuer à tester sur votre ordinateur)
+
+## Lancer le jeu sur votre ordinateur
 
 Double-cliquez sur **Lancer Orbis Urbis.command**. Le jeu s'ouvre dans votre navigateur à l'adresse http://localhost:8770.
 La première fois, macOS peut bloquer le fichier : faites un clic droit dessus, choisissez **Ouvrir**, puis confirmez.
@@ -94,7 +104,7 @@ Sans clé, le globe affiche des photos satellite Esri vues du dessus. Pour avoir
 
 ## Ce qui reste à faire pour un vrai jeu en ligne
 
-- **Hébergement** : mettre le dossier en ligne (Netlify, Vercel…), puis changer la **Site URL** dans Supabase et limiter vos clés Google à l'adresse du site.
+- **Clés Google** : si vous en ajoutez une, limitez-la à l'adresse du site.
 - **Licences** : l'imagerie Esri est utilisable pour un prototype. Pour un jeu public ou payant, vérifiez les conditions d'Esri, de Google, de Nominatim et d'OpenFreeMap (affichage des crédits en bas à gauche).
 
 ## Fichiers
