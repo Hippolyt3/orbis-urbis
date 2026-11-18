@@ -10,7 +10,7 @@ alter table public.profiles add column if not exists last_beat timestamptz;
 alter table public.profiles add column if not exists rewards_day date;
 alter table public.profiles add column if not exists rewards_claimed int not null default 0;   -- 1 = 10 min, 2 = 30 min, 4 = 1 h
 
-create or replace function public.play_challenge(p_tier int, out minutes int, out reward int, out bit int)
+create or replace function public.play_challenge(p_tier int, out minutes int, out reward int, out flag int)
 language sql immutable as $$
   select case p_tier when 1 then 10 when 2 then 30 when 3 then 60 end,
          case p_tier when 1 then 300 when 2 then 1000 when 3 then 3000 end,
@@ -54,7 +54,7 @@ begin
   if ch.minutes is null then raise exception 'Défi inconnu.'; end if;
   select * into me from public.profiles where id = auth.uid() for update;
   claimed := case when me.rewards_day = today then me.rewards_claimed else 0 end;
-  if claimed & ch.bit <> 0 then raise exception 'Défi déjà réclamé aujourd''hui. Revenez demain !'; end if;
+  if claimed & ch.flag <> 0 then raise exception 'Défi déjà réclamé aujourd''hui. Revenez demain !'; end if;
   if me.session_start is null or me.last_beat is null or now() - me.last_beat > interval '3 minutes' then
     raise exception 'Votre série de jeu a été interrompue. Elle repart de zéro.';
   end if;
@@ -64,7 +64,7 @@ begin
   current_balance := me.balance + me.rate * extract(epoch from (now() - me.updated_at)) / 3600;
   update public.profiles
      set balance = current_balance + ch.reward, updated_at = now(),
-         rewards_day = today, rewards_claimed = claimed | ch.bit
+         rewards_day = today, rewards_claimed = claimed | ch.flag
    where id = me.id
    returning * into me;
   return me;
